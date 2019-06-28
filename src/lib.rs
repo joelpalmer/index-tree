@@ -200,6 +200,11 @@ impl<T: Sync> Arena<T> {
     }
 }
 
+trait GetPairMut<T> {
+    /// Get mutable references to two distinct node
+    fn get_tuple_mut(&mut self, a: usize, b: usize) -> Option<(&mut T, &mut T)>;
+}
+
 impl NodeId {
     /// Returns zero-based index.
     fn index0(self) -> usize {
