@@ -1,0 +1,16 @@
+[package]
+name = "index-tree"
+version = "0.1.0"
+authors = ["Joel Palmer <joelpalmer@gmail.com>"]
+edition = "2018"
+
+[features]
+deser = [ "serde", "serde_derive" ]
+derive-eq = []
+par_iter = ["rayon"]
+
+[dependencies]
+failure = { version = "0.1.5", features = ["derive"] }
+rayon = { version = "1.0.3", optional = true }
+serde = { version = "1.0.90", optional = true }
+serde_derive = { version = "1.0.90", optional = true }
