@@ -201,8 +201,22 @@ impl<T: Sync> Arena<T> {
 }
 
 trait GetPairMut<T> {
-    /// Get mutable references to two distinct node
+    /// Get mutable references to two distinct nodes
     fn get_tuple_mut(&mut self, a: usize, b: usize) -> Option<(&mut T, &mut T)>;
+}
+
+impl<T> GetPairMut<T> for Vec<T> {
+    fn get_tuple_mut(&mut self, a: usize, b: usize) -> Option<(&mut T, &mut T)> {
+        if a == b {
+            return None;
+        }
+        let (xs, ys) = self.split_at_mut(std::cmp::max(a, b));
+        if a < b {
+            Some((&mut xs[a], &mut ys[0]))
+        } else {
+            Some((&mut ys[0], &mut xs[b]))
+        }
+    }
 }
 
 impl NodeId {
