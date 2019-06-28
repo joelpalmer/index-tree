@@ -189,6 +189,17 @@ impl<T> Arena<T> {
     }
 }
 
+#[cfg(feature = "par_iter")]
+impl<T: Sync> Arena<T> {
+    /// Return an parallel iterator over the whole arena.
+    ///
+    /// Note that this iterator also contains removed elements, which can be
+    /// tested with the `is_removed()` method on the node.
+    pub fn par_iter(&self) -> rayon::slice::Iter<Node<T>> {
+        self.nodes.par_iter()
+    }
+}
+
 impl NodeId {
     /// Returns zero-based index.
     fn index0(self) -> usize {
