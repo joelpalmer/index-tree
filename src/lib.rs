@@ -293,5 +293,42 @@ impl NodeId {
         NodeId { index1 }
     }
 
-    // MORE...
+    /// Return an iterator of references to this node & its ancestors.
+    ///
+    /// Call `.next().unwrap()` once on the iterator to skip the node itself.
+    pub fn ancestors<T>(self, arena: &Arena<T>) -> Ancestors<T> {
+        Ancestors {
+            arena,
+            node: Some(self),
+        }
+    }
+
+    /// Return an iterator of references to this node & the siblings before it.
+    ///
+    /// Call `.next().unwrap()` once on the iterator to skip the node itself.
+    pub fn preceding_siblings<T>(self, arena: &Arena<T>) -> PrecedingSiblings<T> {
+        PrecedingSiblings {
+            arena,
+            node: Some(self),
+        }
+    }
+
+    // need other types of relatives first!
 }
+
+/// An iterator of references to the ancestors for a given node.
+pub struct Ancestors<'a, T: 'a> {
+    arena: &'a Arena<T>,
+    node: Option<NodeId>,
+}
+
+// impl_node_iterator!
+
+/// An iterator of references to the siblings before a given node.
+pub struct PrecedingSiblings<'a, T: 'a> {
+    arena: &'a Arena<T>,
+    node: Option<NodeId>,
+}
+
+// impl_node_iterator!
+// ...
