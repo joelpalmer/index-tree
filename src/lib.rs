@@ -219,6 +219,19 @@ impl<T> GetPairMut<T> for Vec<T> {
     }
 }
 
+impl<T> Index<NodeId> for Arena<T> {
+    type Output = Node<T>;
+    fn index(&self, node: NodeId) -> &Node<T> {
+        &self.nodes[node.index0()]
+    }
+}
+
+impl<T> IndexMut<NodeId> for Arena<T> {
+    fn index_mut(&mut self, node: NodeId) -> &mut Node<T> {
+        &mut self.nodes[node.index0()]
+    }
+}
+
 impl NodeId {
     /// Returns zero-based index.
     fn index0(self) -> usize {
