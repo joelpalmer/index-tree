@@ -313,7 +313,49 @@ impl NodeId {
         }
     }
 
-    // need other types of relatives first!
+    /// Return an iterator of references to this node & the siblings after it.
+    ///
+    /// Call `.next().unwrap()` once on the iterator to skip the node itself.
+    pub fn following_siblings<T>(self, arena: &Arena<T>) -> FollowingSiblings<T> {
+        FollowingSiblings {
+            arena,
+            node: Some(self),
+        }
+    }
+
+    /// Return an iterator of references to this node’s children in reverse order.
+    pub fn reverse_children<T>(self, arena: &Arena<T>) -> ReverseChildren<T> {
+        ReverseChildren {
+            arena,
+            node: arena[self].last_child,
+        }
+    }
+
+    /// Return an iterator of references to this node and its descendants in tree order.
+    ///
+    /// Parent nodes appear before the descendants.
+    /// Call `.next().unwrap()` once on the iterator to skip the node itself.
+    pub fn descendants<T>(self, arena: &Arena<T>) -> Descendants<T> {
+        Descendants(self.traverse(arena))
+    }
+
+    /// Return an iterator of references to this node & its descendants in tree order.
+    pub fn traverse<T>(self, arena: &Arena<T>) -> Traverse<T> {
+        Traverse {
+            arena,
+            root: self,
+            next: Some(NodeEdge::Start(self)),
+        }
+    }
+
+    /// Return an iterator of references to this node and its descendants in reverse tree order.
+    pub fn reverse_traverse<T>(self, arena: &Arena<T>) -> ReverseTraverse<T> {
+        ReverseTraverse {
+            arena,
+            root: self,
+            next: Some(NodeEdge::End(self)),
+        }
+    }
 }
 
 macro_rules! impl_node_iterator {
@@ -426,6 +468,46 @@ impl<'a, T> Iterator for Traverse<'a, T> {
                                 Some(next_sibling) => Some(NodeEdge::Start(next_sibling)),
                                 None => match self.arena[node].parent {
                                     Some(parent) => Some(NodeEdge::End(parent)),
+
+                                    None => None,
+                                },
+                            }
+                        }
+                    }
+                };
+                Some(item)
+            }
+            None => None,
+        }
+    }
+}
+
+/// An iterator of references to a given node and its descendants in reverse tree order.
+pub struct ReverseTraverse<'a, T: 'a> {
+    arena: &'a Arena<T>,
+    root: NodeId,
+    next: Option<NodeEdge<NodeId>>,
+}
+
+impl<'a, T> Iterator for ReverseTraverse<'a, T> {
+    type Item = NodeEdge<NodeId>;
+
+    fn next(&mut self) -> Option<NodeEdge<NodeId>> {
+        match self.next.take() {
+            Some(item) => {
+                self.next = match item {
+                    NodeEdge::End(node) => match self.arena[node].last_child {
+                        Some(last_child) => Some(NodeEdge::End(last_child)),
+                        None => Some(NodeEdge::Start(node)),
+                    },
+                    NodeEdge::Start(node) => {
+                        if node == self.root {
+                            None
+                        } else {
+                            match self.arena[node].previous_sibling {
+                                Some(previous_sibling) => Some(NodeEdge::End(previous_sibling)),
+                                None => match self.arena[node].parent {
+                                    Some(parent) => Some(NodeEdge::Start(parent)),
 
                                     None => None,
                                 },
