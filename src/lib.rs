@@ -1,6 +1,8 @@
 //! # Arena based tree structure
 //!
 //! [Based on this lib](https://github.com/saschagrunert/indextree/blob/master/src/lib.rs)
+//! [Or this one](https://github.com/SimonSapin/rust-forest/blob/master/arena-tree/lib.rs)
+//! Not sure of origin
 //!
 
 use failure::{bail, Fail, Fallible};
