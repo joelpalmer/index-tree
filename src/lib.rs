@@ -356,6 +356,32 @@ impl NodeId {
             next: Some(NodeEdge::End(self)),
         }
     }
+
+    /// Detach a node from its parent & siblings. Children are not affected.
+    pub fn detach<T>(self, arena: &mut Arena<T>) {
+        let (parent, previous_sibling, next_sibling) = {
+            let node = &mut arena[self];
+            (
+                node.parent.take(),
+                node.previous_sibling.take(),
+                node.next_sibling.take(),
+            )
+        };
+
+        if let Some(next_sibling) = next_sibling {
+            arena[next_sibling].previous_sibling = previous_sibling;
+        } else if let Some(parent) = parent {
+            arena[parent].last_child = previous_sibling;
+        }
+
+        if let Some(previous_sibling) = previous_sibling {
+            arena[previous_sibling].next_sibling = next_sibling;
+        } else if let Some(parent) = parent {
+            arena[parent].first_child = next_sibling;
+        }
+    }
+
+    // todo: append,etc... https://github.com/saschagrunert/indextree/blob/1ab3c273b91e35e23ce9214c3b19d3d68861d65f/src/lib.rs#L430
 }
 
 macro_rules! impl_node_iterator {
