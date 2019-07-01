@@ -316,6 +316,24 @@ impl NodeId {
     // need other types of relatives first!
 }
 
+macro_rules! impl_node_iterator {
+    ($name:ident, $next:expr) => {
+        impl<'a, T> Iterator for $name<'a, T> {
+            type Item = NodeId;
+
+            fn next(&mut self) -> Option<NodeId> {
+                match self.node.take() {
+                    Some(node) => {
+                        self.node = $next(&self.arena[node]);
+                        Some(node)
+                    }
+                    None => None,
+                }
+            }
+        }
+    };
+}
+
 /// An iterator of references to the ancestors for a given node.
 pub struct Ancestors<'a, T: 'a> {
     arena: &'a Arena<T>,
