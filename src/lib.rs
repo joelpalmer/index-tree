@@ -129,17 +129,13 @@ impl<T> fmt::Display for Node<T> {
 #[derive(PartialEq, Clone, Debug)]
 #[cfg_attr(feature = "deser", derive(Deserialize, Serialize))]
 #[cfg_attr(feature = "derive-eq", derive(Eq))]
+#[derive(Default)]
 /// An `Arena` structure containing certain Nodes
 pub struct Arena<T> {
     nodes: Vec<Node<T>>,
 }
 
 impl<T> Arena<T> {
-    /// Create a new empty `Arena`
-    pub fn new() -> Arena<T> {
-        Arena { nodes: Vec::new() }
-    }
-
     /// Creates a new node from its associated data.
     ///
     /// #Panics
@@ -325,6 +321,14 @@ impl NodeId {
         }
     }
 
+    /// Return an iterator of references to this node’s children.
+    pub fn children<T>(self, arena: &Arena<T>) -> Children<T> {
+        Children {
+            arena,
+            node: arena[self].first_child,
+        }
+    }
+
     /// Return an iterator of references to this node’s children in reverse order.
     pub fn reverse_children<T>(self, arena: &Arena<T>) -> ReverseChildren<T> {
         ReverseChildren {
@@ -383,7 +387,204 @@ impl NodeId {
         }
     }
 
-    // todo: append,etc... https://github.com/saschagrunert/indextree/blob/1ab3c273b91e35e23ce9214c3b19d3d68861d65f/src/lib.rs#L430
+    /// Append a new child to this node
+    pub fn append<T>(self, new_child: NodeId, arena: &mut Arena<T>) -> Fallible<()> {
+        new_child.detach(arena);
+        let last_child_opt;
+        {
+            if let Some((self_borrow, new_child_borrow)) =
+                arena.nodes.get_tuple_mut(self.index0(), new_child.index0())
+            {
+                new_child_borrow.parent = Some(self);
+                last_child_opt = mem::replace(&mut self_borrow.last_child, Some(new_child));
+                if let Some(last_child) = last_child_opt {
+                    new_child_borrow.previous_sibling = Some(last_child);
+                } else {
+                    if self_borrow.first_child.is_some() {
+                        bail!(NodeError::FirstChildAlreadySet);
+                    }
+                    self_borrow.first_child = Some(new_child);
+                }
+            } else {
+                bail!(NodeError::AppendSelf);
+            }
+        }
+        // Odd CLion plugin ↓ complaint (use of possibly uninitialized variable: last_child, rustc is fine)
+        if let Some(last_child) = last_child_opt {
+            if arena[last_child].next_sibling.is_some() {
+                bail!(NodeError::NextSiblingAlreadySet);
+            }
+            arena[last_child].next_sibling = Some(new_child);
+        }
+        Ok(())
+    }
+
+    /// Prepend a new child to this node
+    pub fn prepend<T>(self, new_child: NodeId, arena: &mut Arena<T>) -> Fallible<()> {
+        new_child.detach(arena);
+        let first_child_opt;
+        {
+            if let Some((self_borrow, new_child_borrow)) =
+                arena.nodes.get_tuple_mut(self.index0(), new_child.index0())
+            {
+                new_child_borrow.parent = Some(self);
+                first_child_opt = mem::replace(&mut self_borrow.first_child, Some(new_child));
+                if let Some(first_child) = first_child_opt {
+                    new_child_borrow.next_sibling = Some(first_child);
+                } else {
+                    self_borrow.last_child = Some(new_child);
+                    if self_borrow.first_child.is_some() {
+                        bail!(NodeError::FirstChildAlreadySet);
+                    }
+                }
+            } else {
+                bail!(NodeError::PrependSelf);
+            }
+        }
+        // Odd CLion plugin ↓ complaint (use of possibly uninitialized variable: first_child, rustc is fine)
+        if let Some(first_child) = first_child_opt {
+            if arena[first_child].previous_sibling.is_some() {
+                bail!(NodeError::PreviousSiblingAlreadySet);
+            }
+            arena[first_child].previous_sibling = Some(new_child);
+        }
+        Ok(())
+    }
+
+    /// Insert a new sibling after this node.
+    pub fn insert_after<T>(self, new_sibling: NodeId, arena: &mut Arena<T>) -> Fallible<()> {
+        new_sibling.detach(arena);
+        let next_sibling_opt;
+        let parent_opt;
+        {
+            if let Some((self_borrow, new_sibling_borrow)) = arena
+                .nodes
+                .get_tuple_mut(self.index0(), new_sibling.index0())
+            {
+                parent_opt = self_borrow.parent;
+                new_sibling_borrow.parent = parent_opt;
+                new_sibling_borrow.previous_sibling = Some(self);
+                next_sibling_opt = mem::replace(&mut self_borrow.next_sibling, Some(new_sibling));
+                if let Some(next_sibling) = next_sibling_opt {
+                    new_sibling_borrow.next_sibling = Some(next_sibling);
+                }
+            } else {
+                bail!(NodeError::InsertAfterSelf);
+            }
+        }
+        // Odd CLion plugin ↓ complaint (use of possibly uninitialized variable: next_sibling, rustc is fine)
+        if let Some(next_sibling) = next_sibling_opt {
+            if let Some(previous_sibling) = arena[next_sibling].previous_sibling {
+                if previous_sibling != self {
+                    bail!(NodeError::PreviousSiblingNotSelf);
+                }
+            } else {
+                bail!(NodeError::PreviousSiblingNotSet);
+            }
+            arena[next_sibling].previous_sibling = Some(new_sibling);
+        } else if let Some(parent) = parent_opt {
+            if let Some(last_child) = arena[parent].last_child {
+                if last_child != self {
+                    bail!(NodeError::LastChildNotSelf);
+                }
+            } else {
+                bail!(NodeError::LastChildNotSet);
+            }
+            arena[parent].last_child = Some(new_sibling);
+        }
+        Ok(())
+    }
+
+    /// Insert a new sibling before this node.
+    pub fn insert_before<T>(self, new_sibling: NodeId, arena: &mut Arena<T>) -> Fallible<()> {
+        new_sibling.detach(arena);
+        let previous_sibling_opt;
+        let parent_opt;
+        {
+            if let Some((self_borrow, new_sibling_borrow)) = arena
+                .nodes
+                .get_tuple_mut(self.index0(), new_sibling.index0())
+            {
+                parent_opt = self_borrow.parent;
+                new_sibling_borrow.parent = parent_opt;
+                new_sibling_borrow.next_sibling = Some(self);
+                previous_sibling_opt =
+                    mem::replace(&mut self_borrow.previous_sibling, Some(new_sibling));
+                if let Some(previous_sibling) = previous_sibling_opt {
+                    new_sibling_borrow.previous_sibling = Some(previous_sibling);
+                }
+            } else {
+                bail!(NodeError::InsertBeforeSelf);
+            }
+        }
+        // Odd CLion plugin ↓ complaint (use of possibly uninitialized variable: previous_sibling, rustc is fine)
+        if let Some(previous_sibling) = previous_sibling_opt {
+            if let Some(next_sibling) = arena[previous_sibling].next_sibling {
+                if next_sibling != self {
+                    bail!(NodeError::NextSiblingNotSelf);
+                }
+            } else {
+                bail!(NodeError::NextSiblingNotSet);
+            }
+            arena[previous_sibling].next_sibling = Some(new_sibling);
+        } else if let Some(parent) = parent_opt {
+            if let Some(first_child) = arena[parent].first_child {
+                if first_child != self {
+                    bail!(NodeError::FirstChildNotSelf);
+                }
+            } else {
+                bail!(NodeError::FirstChildNotSet);
+            }
+            arena[parent].first_child = Some(new_sibling);
+        }
+        Ok(())
+    }
+
+    /// Remove a node from the arena. Available children of the removed node
+    /// will be appended to the parent after the previous sibling if available.
+    ///
+    /// Please note that the node will not be removed from the internal arena
+    /// storage, but marked as `removed`. Traversing the arena returns a
+    /// plain iterator and contains removed elements too.
+    pub fn remove<T>(self, arena: &mut Arena<T>) -> Fallible<()> {
+        // Modify the parents of the childs
+        for child in self.children(arena).collect::<Vec<_>>() {
+            arena[child].parent = arena[self].parent
+        }
+
+        // Retrieve needed values
+        let (previous_sibling, next_sibling, first_child, last_child) = {
+            let node = &mut arena[self];
+            (
+                node.previous_sibling.take(),
+                node.next_sibling.take(),
+                node.first_child.take(),
+                node.last_child.take(),
+            )
+        };
+
+        // Modify the front
+        if let (Some(previous_sibling), Some(first_child)) = (previous_sibling, first_child) {
+            arena[previous_sibling].next_sibling = Some(first_child);
+            arena[first_child].previous_sibling = Some(previous_sibling);
+        }
+
+        // Modify the back
+        if let (Some(next_sibling), Some(last_child)) = (next_sibling, last_child) {
+            arena[next_sibling].previous_sibling = Some(last_child);
+            arena[last_child].next_sibling = Some(next_sibling);
+        }
+
+        // Cleanup the current node
+        self.detach(arena);
+        {
+            let mut_self = &mut arena[self];
+            mut_self.first_child = None;
+            mut_self.last_child = None;
+            mut_self.removed = true;
+        }
+        Ok(())
+    }
 }
 
 macro_rules! impl_node_iterator {

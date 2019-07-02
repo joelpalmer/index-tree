@@ -1,5 +1,5 @@
 [package]
-name = "index-tree"
+name = "indextree"
 version = "0.1.0"
 authors = ["Joel Palmer <joelpalmer@gmail.com>"]
 edition = "2018"
@@ -14,3 +14,10 @@ failure = { version = "0.1.5", features = ["derive"] }
 rayon = { version = "1.0.3", optional = true }
 serde = { version = "1.0.90", optional = true }
 serde_derive = { version = "1.0.90", optional = true }
+
+[[example]]
+name = "parallel_iteration"
+required-features = ["par_iter"]
+
+[[example]]
+name = "simple"
